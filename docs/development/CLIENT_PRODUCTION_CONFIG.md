@@ -15,7 +15,7 @@ const socket = io("http://localhost:3001");
 
 **After (Production):**
 ```javascript
-const socket = io("https://gosei-svr01.ecreative.asia", {
+const socket = io("https://gosei-svrxx.yourdomain.com", {
   transports: ['websocket', 'polling'],
   reconnection: true,
   reconnectionAttempts: 5,
@@ -41,7 +41,7 @@ const getSocketConfig = () => {
   
   return {
     url: isProduction 
-      ? 'https://gosei-svr01.ecreative.asia'
+      ? 'https://gosei-svrxx.yourdomain.com'
       : 'http://localhost:3001',
     options: {
       transports: ['websocket', 'polling'],
@@ -75,7 +75,7 @@ export default getSocketConfig;
 
 **`.env.production`:**
 ```
-REACT_APP_SOCKET_URL=https://gosei-svr01.ecreative.asia
+REACT_APP_SOCKET_URL=https://gosei-svrxx.yourdomain.com
 REACT_APP_NODE_ENV=production
 REACT_APP_DEBUG=false
 REACT_APP_API_TIMEOUT=15000
@@ -102,7 +102,7 @@ const io = socketIo(server, {
       'https://*.netlify.app',
       'https://svr-01.gosei.xyz',
       'https://*.gosei.xyz',
-      'https://gosei-svr01.ecreative.asia',
+      'https://gosei-svrxx.yourdomain.com',
       // Add your client domain here
       'https://your-client-domain.com'
     ],
@@ -123,12 +123,12 @@ const io = socketIo(server, {
   publish = "build"
 
 [build.environment]
-  REACT_APP_SOCKET_URL = "https://gosei-svr01.ecreative.asia"
+  REACT_APP_SOCKET_URL = "https://gosei-svrxx.yourdomain.com"
   REACT_APP_NODE_ENV = "production"
 
 [[redirects]]
   from = "/socket.io/*"
-  to = "https://gosei-svr01.ecreative.asia/socket.io/:splat"
+  to = "https://gosei-svrxx.yourdomain.com/socket.io/:splat"
   status = 200
   force = true
 
@@ -146,7 +146,7 @@ Create a simple test to verify the connection works:
 
 ```javascript
 // Test in browser console:
-const testSocket = io("https://gosei-svr01.ecreative.asia");
+const testSocket = io("https://gosei-svrxx.yourdomain.com");
 
 testSocket.on('connect', () => {
   console.log('✅ Connected to production server!');
