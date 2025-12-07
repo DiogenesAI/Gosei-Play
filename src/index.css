@@ -1,0 +1,111 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@100;200;300;400;500;600;700;800;900&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom styles */
+@layer base {
+  body {
+    @apply antialiased text-neutral-800 bg-neutral-50 font-sans;
+    font-feature-settings: 'cv01', 'cv03', 'cv04', 'cv09';
+    letter-spacing: -0.01em;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display font-bold text-neutral-900;
+    letter-spacing: -0.025em;
+  }
+
+  h1 {
+    @apply text-4xl md:text-5xl font-extrabold;
+    letter-spacing: -0.035em;
+  }
+
+  h2 {
+    @apply text-3xl md:text-4xl font-bold;
+    letter-spacing: -0.03em;
+  }
+
+  h3 {
+    @apply text-2xl md:text-3xl font-semibold;
+    letter-spacing: -0.025em;
+  }
+
+  .text-display {
+    @apply font-display;
+    letter-spacing: -0.02em;
+  }
+
+  /* Improve text rendering across the app */
+  p, span, label, input, select, textarea, button {
+    font-feature-settings: 'kern' 1, 'liga' 1;
+  }
+
+  /* Better button text */
+  button {
+    @apply font-semibold;
+    letter-spacing: -0.01em;
+  }
+
+  /* Better label styling */
+  label {
+    @apply font-medium;
+    letter-spacing: -0.005em;
+  }
+
+  /* Better paragraph text */
+  p {
+    line-height: 1.6;
+    letter-spacing: -0.005em;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center px-4 py-2 rounded-lg font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 transform hover:scale-105 shadow-lg hover:shadow-xl;
+    letter-spacing: -0.01em;
+  }
+
+  .btn-primary {
+    @apply bg-primary-600 text-white hover:bg-primary-700 focus:ring-primary-500;
+  }
+
+  .btn-secondary {
+    @apply bg-secondary-600 text-white hover:bg-secondary-700 focus:ring-secondary-500;
+  }
+
+  .btn-success {
+    @apply bg-emerald-500 text-white hover:bg-emerald-600 focus:ring-emerald-500;
+  }
+
+  .btn-danger {
+    @apply bg-red-600 text-white hover:bg-red-700 focus:ring-red-500;
+  }
+
+  .btn-disabled {
+    @apply bg-neutral-300 text-neutral-500 cursor-not-allowed;
+  }
+
+  .btn-disabled:hover {
+    @apply bg-neutral-300 text-neutral-500 transform-none;
+  }
+
+  .card {
+    @apply bg-white rounded-xl shadow-soft p-6;
+  }
+
+  .form-input {
+    @apply w-full px-3 py-2 border border-neutral-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:border-primary-500 focus:ring-primary-500 font-medium transition-all duration-200;
+    letter-spacing: -0.01em;
+  }
+
+  .form-select {
+    @apply w-full px-3 py-2 border border-neutral-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:border-primary-500 focus:ring-primary-500 font-medium transition-all duration-200;
+    letter-spacing: -0.01em;
+  }
+
+  .board-bg {
+    @apply bg-board-bg rounded-xl overflow-hidden shadow-card relative;
+  }
+}

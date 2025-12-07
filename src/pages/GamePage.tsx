@@ -1,0 +1,1109 @@
+import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { GoBoard, GameInfo } from '../components/go-board';
+import GameError from '../components/GameError';
+import ThemeToggleButton from '../components/ThemeToggleButton';
+import { useGame } from '../context/GameContext';
+import { Position, GameState, Stone } from '../types/go';
+import FloatingChatBubble from '../components/FloatingChatBubble';
+
+import GameCompleteModal from '../components/GameCompleteModal';
+import GameReview from '../components/GameReview';
+import GoseiLogo from '../components/GoseiLogo';
+import GameNotification from '../components/GameNotification';
+import UndoNotification from '../components/UndoNotification';
+import AIUndoConfirmModal from '../components/AIUndoConfirmModal';
+import MobileStoneControls from '../components/go-board/MobileStoneControls';
+import MobilePlayerPanel from '../components/mobile/MobilePlayerPanel';
+import MobileGameTools from '../components/mobile/MobileGameTools';
+import ShareModal from '../components/ShareModal';
+import useDeviceDetect from '../hooks/useDeviceDetect';
+import { useAppTheme } from '../context/AppThemeContext';
+
+// Helper function to check game status safely
+const hasStatus = (gameState: GameState, status: 'waiting' | 'playing' | 'finished' | 'scoring'): boolean => {
+  return gameState.status === status;
+};
+
+// Username validation function
+const validateUsername = (name: string): { isValid: boolean; error: string | null } => {
+  // Check length (4-32 characters)
+  if (name.length < 4) {
+    return { isValid: false, error: 'Name must be at least 4 characters long' };
+  }
+  if (name.length > 32) {
+    return { isValid: false, error: 'Name must be no more than 32 characters long' };
+  }
+  
+  // Check for special characters (only allow letters, numbers, spaces, underscores, and hyphens)
+  const allowedCharsRegex = /^[a-zA-Z0-9\s_-]+$/;
+  if (!allowedCharsRegex.test(name)) {
+    return { isValid: false, error: 'Name can only contain letters, numbers, spaces, underscores, and hyphens' };
+  }
+  
+  // Check that it's not just spaces
+  if (name.trim().length === 0) {
+    return { isValid: false, error: 'Name cannot be empty or only spaces' };
+  }
+  
+  return { isValid: true, error: null };
+};
+
+const GamePage: React.FC = () => {
+  const { gameId } = useParams<{ gameId: string }>();
+  const navigate = useNavigate();
+  const { isDarkMode } = useAppTheme();
+  const {
+    gameState, 
+    loading, 
+    currentPlayer, 
+    error,
+    moveError,
+    placeStone, 
+    passTurn, 
+    leaveGame, 
+    joinGame, 
+    syncGameState, 
+    resignGame,
+    toggleDeadStone,
+    confirmScore,
+    requestUndo,
+    requestAIUndo,
+    respondToUndoRequest,
+    cancelScoring,
+    forceScoring,
+    resetGame,
+    syncDeadStones,
+    clearMoveError
+  } = useGame();
+  const [username, setUsername] = useState<string>(() => localStorage.getItem('gosei-player-name') || '');
+  const [showJoinForm, setShowJoinForm] = useState<boolean>(true);
+  const [joinAsSpectator, setJoinAsSpectator] = useState<boolean>(false);
+
+  const [syncing, setSyncing] = useState<boolean>(false);
+  const [usernameError, setUsernameError] = useState<string | null>(null);
+  const [chatMessages, setChatMessages] = useState<Array<{
+    id: string;
+    playerId: string;
+    username: string;
+    message: string;
+    timestamp: number;
+    }>>([]);
+
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+  const [autoSaveEnabled, setAutoSaveEnabled] = useState<boolean>(() => {
+    // Initialize from localStorage if available
+    const savedPref = localStorage.getItem('gosei-auto-save-enabled');
+    return savedPref ? JSON.parse(savedPref) : false;
+  });
+  const [autoSaveInterval, setAutoSaveInterval] = useState<NodeJS.Timeout | null>(null);
+      const [showDevTools, setShowDevTools] = useState(false);
+
+  const [showGameCompleteModal, setShowGameCompleteModal] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  
+  // Mobile controls preview position state
+  const [previewPosition, setPreviewPosition] = useState<Position | null>(null);
+  const [isThinking, setIsThinking] = useState(false);
+  
+  // Review mode state
+  const [reviewBoardState, setReviewBoardState] = useState<{
+    stones: Stone[];
+    currentMoveIndex: number;
+    isReviewing: boolean;
+  } | null>(null);
+
+  // Get device type for coordinate default
+  const { isMobile, isTablet } = useDeviceDetect();
+
+  // Coordinate display state
+  const [showCoordinates, setShowCoordinates] = useState<boolean>(() => {
+    // Initialize from localStorage if available
+    const savedPref = localStorage.getItem('gosei-show-coordinates');
+    if (savedPref) {
+      return JSON.parse(savedPref);
+    }
+    // Default to false on mobile/tablet, true on desktop
+    return !(isMobile || isTablet);
+  });
+
+  // Helper function to show notifications
+  const showNotification = useCallback((message: string, type: 'info' | 'warning' | 'error' | 'resign' | 'leave', result?: string) => {
+    setNotification({
+      visible: true,
+      message,
+      type,
+      result,
+      id: `${Date.now()}-${Math.random()}`
+    });
+  }, []);
+
+  // Stable notification close handler
+  const handleNotificationClose = useCallback(() => {
+    setNotification({
+      visible: false,
+      message: '',
+      type: 'info'
+    });
+  }, []);
+
+
+  // Notification state
+  const [notification, setNotification] = useState<{
+    visible: boolean;
+    message: string;
+    type: 'info' | 'warning' | 'error' | 'resign' | 'leave';
+    result?: string;
+    id?: string;
+  }>({
+    visible: false,
+    message: '',
+    type: 'info'
+  });
+
+    // Spectator review state
+  const [spectatorReviewStones, setSpectatorReviewStones] = useState<Stone[] | null>(null);
+
+  const [spectatorIsReviewing, setSpectatorIsReviewing] = useState<boolean>(false);
+
+  // AI undo confirmation modal state
+  const [showAIUndoConfirm, setShowAIUndoConfirm] = useState<boolean>(false);
+
+  // Check if there's a gameId in the URL and try to load that game
+  useEffect(() => {
+    // If we have a gameId/code from the URL but no gameState, show join form
+    if (gameId && !gameState && !showJoinForm && !loading) {
+      // Get stored name if available
+      const storedName = localStorage.getItem('gosei-player-name');
+      if (storedName) {
+        setUsername(storedName);
+      }
+      setShowJoinForm(true);
+    }
+  }, [gameId, gameState, showJoinForm, loading]);
+
+  // Show game complete modal when game finishes
+  useEffect(() => {
+    if (gameState?.status === 'finished') {
+      // Check if current user is a spectator
+      const isSpectator = currentPlayer && currentPlayer.isSpectator === true;
+      
+      if (isSpectator) {
+        // Show special notification for spectators
+        showNotification('Game has ended. You can review the game or leave.', 'info');
+      } else {
+        // Show modal for players
+        setShowGameCompleteModal(true);
+      }
+    }
+  }, [gameState?.status, currentPlayer, showNotification]);
+
+  // Set up or clear autosave interval based on autoSaveEnabled state
+  useEffect(() => {
+    // Save preference to localStorage
+    localStorage.setItem('gosei-auto-save-enabled', JSON.stringify(autoSaveEnabled));
+
+    // Clear any existing interval
+    if (autoSaveInterval) {
+      clearInterval(autoSaveInterval);
+      setAutoSaveInterval(null);
+    }
+
+    // Set up new interval if enabled
+    if (autoSaveEnabled && gameState && gameState.id) {
+      const gameId = gameState.id;
+      const interval = setInterval(() => {
+        // Save current game state to localStorage with a custom key
+        try {
+          const currentGameState = gameState;
+          const currentPlayerData = currentPlayer;
+          localStorage.setItem(`gosei-offline-game-${gameId}`, JSON.stringify({
+            gameState: currentGameState,
+            savedAt: new Date().toISOString(),
+            currentPlayer: currentPlayerData
+          }));
+          console.log('Game auto-saved to local storage');
+        } catch (error) {
+          console.error('Failed to auto-save game:', error);
+          // If storage is full, disable auto-save
+          if (error instanceof DOMException && error.name === 'QuotaExceededError') {
+            setAutoSaveEnabled(false);
+            setNotification({
+          visible: true,
+          message: 'Auto-save has been disabled because your device storage is full.',
+          type: 'warning'
+        });
+          }
+        }
+      }, 30000); // Save every 30 seconds
+      
+      setAutoSaveInterval(interval);
+    }
+
+    // Clean up interval on component unmount
+    return () => {
+      if (autoSaveInterval) {
+        clearInterval(autoSaveInterval);
+      }
+    };
+  }, [autoSaveEnabled, gameState, currentPlayer, autoSaveInterval]);
+
+  // Effect to set up keyboard shortcut for developer tools
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Toggle dev tools with Ctrl+Shift+D
+      if (e.ctrlKey && e.shiftKey && e.key === 'D') {
+        setShowDevTools(prev => !prev);
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Add chat-related effects
+  useEffect(() => {
+    const socket = gameState?.socket;
+    if (!socket) {
+      return;
+    }
+
+    socket.on('connect', () => {
+      console.log('Socket reconnected, rejoining chat room...');
+      if (gameState?.id && currentPlayer) {
+        socket.emit('joinGame', {
+          gameId: gameState.id,
+          playerId: currentPlayer.id,
+          username: currentPlayer.username,
+          isReconnect: true
+        });
+      }
+    });
+
+    socket.on('disconnect', () => {
+      console.log('Socket disconnected');
+    });
+
+    socket.on('connect_error', () => {
+      console.log('Socket connection error');
+    });
+
+    // Listen for chat messages
+    socket.on('chatMessageReceived', (data) => {
+      console.log('Received chat message:', data);
+      setChatMessages(prev => [...prev, {
+        id: data.id,
+        playerId: data.playerId,
+        username: data.username,
+        message: data.message,
+        timestamp: data.timestamp
+      }]);
+    });
+
+    // Listen for chat history when joining a game
+    socket.on('chatHistory', (data) => {
+      console.log('Received chat history:', data);
+      if (data.messages && Array.isArray(data.messages)) {
+        setChatMessages(data.messages);
+      }
+    });
+
+    // Setup error handler for chat
+    socket.on('error', (error) => {
+      console.error('Socket error:', error);
+      if (error.includes('chat')) {
+        setNotification({
+          visible: true,
+          message: 'Chat error: ' + error,
+          type: 'error'
+        });
+      }
+    });
+
+    // Handle player left event
+    socket.on('playerLeft', (leaveData) => {
+      console.log(`Player ${leaveData.playerId} left the game`);
+      
+      // Use username from server data if available, otherwise find it in game state
+      let username = leaveData.username;
+      if (!username) {
+        const leftPlayer = gameState?.players.find(p => p.id === leaveData.playerId);
+        username = leftPlayer?.username || 'A player';
+      }
+      
+      // Only show notification if it's not the current player leaving
+      if (leaveData.playerId !== currentPlayer?.id) {
+        // Show main notification modal for better visibility
+        showNotification(`${username} has left the game.`, 'leave');
+      }
+    });
+
+    // Handle player disconnection
+    socket.on('playerDisconnected', (disconnectData) => {
+      console.log(`Player disconnected from the game`);
+      // Find the disconnected player (excluding the current player)
+      const disconnectedPlayer = gameState?.players.find(
+        p => p.id !== currentPlayer?.id
+      );
+      if (disconnectedPlayer) {
+        const username = disconnectedPlayer.username || 'A player';
+        // Use main notification for better visibility
+        setNotification({
+          visible: true,
+          message: `${username} has disconnected from the game.`,
+          type: 'warning'
+        });
+      }
+    });
+
+    // Listen for player resignation
+    socket.on('playerResigned', (data: { playerId: string, color: string, username: string, message?: string, result?: string }) => {
+      console.log(`Player resignation: ${data.message || `${data.username} (${data.color}) resigned`}`);
+      
+      // Only show notification to the opponent
+      if (currentPlayer && data.playerId !== currentPlayer.id) {
+        // Use the enhanced message if available, otherwise fallback to the old format
+        const message = data.message || `${data.username} has resigned the game.`;
+        const result = data.result || (data.color === 'black' ? 'W+R' : 'B+R');
+        
+        setNotification({
+          visible: true,
+          message: message,
+          type: 'resign',
+          result: result
+        });
+      }
+    });
+
+    // Listen for player timeout
+    socket.on('playerTimeout', (data: { playerId: string, color: string, message: string, result: string }) => {
+      console.log(`Player timeout: ${data.message}`);
+      
+      // Show timeout notification with proper message and result
+      setNotification({
+        visible: true,
+        message: data.message,
+        type: 'info',
+        result: data.result
+      });
+    });
+
+    // Listen for player joined/rejoined
+    socket.on('playerJoined', (data: { gameId: string, playerId: string, username: string, isReconnect?: boolean }) => {
+      console.log(`Player ${data.username} ${data.isReconnect ? 'rejoined' : 'joined'} the game`);
+      
+      // Only show notification if it's not the current player
+      if (currentPlayer && data.playerId !== currentPlayer.id) {
+        showNotification(`${data.username} has ${data.isReconnect ? 'rejoined' : 'joined'} the game.`, 'info');
+      }
+    });
+
+    // Listen for spectator joined (no notifications)
+    socket.on('spectatorJoined', (data: { gameId: string, playerId: string, username: string, isReconnect?: boolean }) => {
+      console.log(`Spectator ${data.username} ${data.isReconnect ? 'rejoined' : 'joined'} the game`);
+    });
+
+    // Listen for spectator left (no notifications)
+    socket.on('spectatorLeft', (data: { gameId: string, playerId: string, username: string }) => {
+      console.log(`Spectator ${data.username} left the game`);
+    });
+
+    // Listen for score confirmation updates
+    socket.on('scoreConfirmationUpdate', (data: { gameId: string, playerId: string, playerColor: string, confirmed: boolean, scoreConfirmation: { black: boolean, white: boolean } }) => {
+      console.log(`Score confirmation update: ${data.playerColor} ${data.confirmed ? 'confirmed' : 'unconfirmed'}`);
+      
+      // Only show notification if it's not the current player confirming
+      if (currentPlayer && data.playerId !== currentPlayer.id && data.confirmed) {
+        const opponentName = gameState?.players.find(p => p.id === data.playerId)?.username || 'Your opponent';
+        
+        // Check if both players have now confirmed
+        if (data.scoreConfirmation.black && data.scoreConfirmation.white) {
+          showNotification(`${opponentName} confirmed the score. Both players agreed - game will finish now!`, 'info');
+        } else {
+          showNotification(`${opponentName} confirmed the score. Waiting for your confirmation.`, 'info');
+        }
+      }
+    });
+
+    return () => {
+      socket.off('chatMessageReceived');
+      socket.off('chatHistory');
+      socket.off('error');
+      socket.off('connect');
+      socket.off('disconnect');
+      socket.off('connect_error');
+      socket.off('playerLeft');
+      socket.off('playerDisconnected');
+      socket.off('playerResigned');
+      socket.off('playerTimeout');
+      socket.off('playerJoined');
+      socket.off('scoreConfirmationUpdate');
+    };
+  }, [gameState?.socket, gameState?.id, currentPlayer, gameState?.players, showNotification]);
+
+  // Auto-scroll chat to bottom when new messages arrive
+  useEffect(() => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
+  }, [chatMessages]);
+
+  const toggleAutoSave = () => {
+    setAutoSaveEnabled(prev => !prev);
+  };
+
+  const saveGameNow = () => {
+    if (gameState && gameState.id) {
+      try {
+        localStorage.setItem(`gosei-offline-game-${gameState.id}`, JSON.stringify({
+          gameState,
+          savedAt: new Date().toISOString(),
+          currentPlayer
+        }));
+        setNotification({
+          visible: true,
+          message: 'Game saved successfully for offline access!',
+          type: 'info'
+        });
+      } catch (error) {
+        console.error('Failed to save game:', error);
+        setNotification({
+          visible: true,
+          message: 'Failed to save game. Your device storage might be full.',
+          type: 'error'
+        });
+      }
+    }
+  };
+
+  const handleToggleCoordinates = (show: boolean) => {
+    setShowCoordinates(show);
+    localStorage.setItem('gosei-show-coordinates', JSON.stringify(show));
+  };
+
+  const handleStonePlace = (position: Position) => {
+    placeStone(position);
+  };
+
+  const handlePassTurn = () => {
+    passTurn();
+  };
+
+  const handleLeaveGame = () => {
+    leaveGame();
+    navigate('/');
+  };
+
+  const handleResignGame = () => {
+    resignGame();
+  };
+
+  const handleToggleDeadStone = (position: Position) => {
+    toggleDeadStone(position);
+  };
+
+  const handleConfirmScore = () => {
+    // First, count dead stones by color for the confirmation message
+    if (!gameState || !currentPlayer) return;
+    
+    const deadBlackStones = gameState.board.stones.filter(stone => 
+      stone.color === 'black' && 
+      gameState.deadStones?.some(dead => 
+        dead.x === stone.position.x && dead.y === stone.position.y
+      )
+    ).length;
+    
+    const deadWhiteStones = gameState.board.stones.filter(stone => 
+      stone.color === 'white' && 
+      gameState.deadStones?.some(dead => 
+        dead.x === stone.position.x && dead.y === stone.position.y
+      )
+    ).length;
+    
+    // Check if current player has already confirmed
+    if (gameState.scoreConfirmation?.[currentPlayer.color as 'black' | 'white']) {
+      showNotification('You have already confirmed the score. Waiting for your opponent.', 'warning');
+      return;
+    }
+    
+
+    
+    // Show confirmation message based on confirmation status
+    const totalDeadStones = deadBlackStones + deadWhiteStones;
+    const confirmationStatus = gameState.scoreConfirmation || { black: false, white: false };
+    const opponentColor = currentPlayer.color === 'black' ? 'white' : 'black';
+    const opponentConfirmed = confirmationStatus[opponentColor];
+    
+    if (opponentConfirmed) {
+      showNotification(`Score confirmed! Both players agreed. Dead stones: ${totalDeadStones} (${deadBlackStones} black, ${deadWhiteStones} white). Game will finish now.`, 'info');
+    } else {
+      showNotification(`Your score confirmation sent. Dead stones: ${totalDeadStones} (${deadBlackStones} black, ${deadWhiteStones} white). Waiting for opponent confirmation.`, 'info');
+    }
+    
+    // Call the confirmScore function from context
+    confirmScore();
+    
+
+  };
+
+  const handleCancelScoring = () => {
+    cancelScoring();
+  };
+
+  const handleForceScoring = () => {
+    forceScoring();
+    showNotification('Scoring phase initiated due to unresponsive AI', 'info');
+  };
+
+  // Handle username input changes with validation
+  const handleUsernameChange = (value: string) => {
+    setUsername(value);
+    
+    // Clear errors when user starts typing again
+    if (usernameError) {
+      setUsernameError(null);
+    }
+    
+    // Validate if not empty
+    if (value.length > 0) {
+      const validation = validateUsername(value);
+      if (!validation.isValid) {
+        setUsernameError(validation.error);
+      }
+    }
+  };
+
+  const handleJoinGame = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmedUsername = username.trim();
+    
+    if (!trimmedUsername) {
+      setUsernameError('Please enter your username');
+      return;
+    }
+    
+    // Validate username
+    const validation = validateUsername(trimmedUsername);
+    if (!validation.isValid) {
+      setUsernameError(validation.error);
+      return;
+    }
+    
+    if (gameId) {
+      // Clear errors and save username for future games
+      setUsernameError(null);
+      localStorage.setItem('gosei-player-name', trimmedUsername);
+      // Join the game using the joinGame function
+      joinGame(gameId, trimmedUsername, joinAsSpectator);
+      setShowJoinForm(false);
+    }
+  };
+
+  const handleShareGame = () => {
+    setShowShareModal(true);
+  };
+  
+  const handleSyncGame = () => {
+    console.log('Manually syncing game state and dead stones');
+    setSyncing(true);
+    
+    // Call both sync functions to ensure complete synchronization
+    syncGameState();
+    
+    if (gameState && hasStatus(gameState, 'scoring')) {
+      syncDeadStones();
+    }
+    
+    // Show a visual feedback that sync was attempted
+    setTimeout(() => setSyncing(false), 1000);
+  };
+
+  const handleRequestUndo = () => {
+    // Check if this is an AI game
+    const isAIGame = gameState?.players.some(player => player.isAI);
+    
+    if (isAIGame) {
+      // Show confirmation modal for AI games
+      setShowAIUndoConfirm(true);
+    } else {
+      // Direct undo for human vs human games
+      requestUndo();
+    }
+  };
+
+  const handleConfirmAIUndo = () => {
+    setShowAIUndoConfirm(false);
+    requestAIUndo();
+  };
+
+  const handleCancelAIUndo = () => {
+    setShowAIUndoConfirm(false);
+  };
+
+  const handleAcceptUndo = () => {
+    respondToUndoRequest(true);
+  };
+
+  const handleRejectUndo = () => {
+    respondToUndoRequest(false);
+  };
+
+
+
+
+
+
+
+  // Mobile stone placement handler
+  const handleMobilePlaceStone = () => {
+    if (previewPosition) {
+      setIsThinking(true);
+      handleStonePlace(previewPosition);
+      setPreviewPosition(null);
+      // Reset thinking state after a short delay
+      setTimeout(() => {
+        setIsThinking(false);
+      }, 1000);
+    }
+  };
+  
+  // Monitor move errors and convert Ko rule violations to notifications
+  useEffect(() => {
+    if (moveError && moveError.toLowerCase().includes('ko rule violation')) {
+      // Show Ko rule violation as a warning notification
+      showNotification('Ko rule violation: You cannot immediately recapture. Please play elsewhere first.', 'warning');
+      // Clear the move error so it doesn't show in GameError component
+      clearMoveError();
+    }
+  }, [moveError, showNotification, clearMoveError]);
+  
+  // Review mode state
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-neutral-100 p-4">
+        {/* Theme Toggle Button - positioned in top right */}
+        <div className="absolute top-4 right-4">
+          <ThemeToggleButton />
+        </div>
+        
+        <div className="card max-w-md w-full text-center">
+                          <h2 className="text-2xl font-bold mb-4 font-display tracking-tight">Loading Game...</h2>
+          <p>Please wait while we set up the game.</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Game not found
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-neutral-100 p-4">
+        {/* Theme Toggle Button - positioned in top right */}
+        <div className="absolute top-4 right-4">
+          <ThemeToggleButton />
+        </div>
+        
+        <div className="card max-w-md w-full">
+          <h2 className="text-2xl font-bold text-red-600 mb-4">Error</h2>
+          <p className="mb-4">{error}</p>
+          <button
+            onClick={() => navigate('/')}
+            className={`
+              w-full px-4 py-2.5 rounded-lg font-medium transition-all duration-200 
+              ${isDarkMode 
+                ? 'bg-slate-700/50 hover:bg-slate-600/60 text-slate-200 hover:text-white border border-slate-600/50 hover:border-slate-500' 
+                : 'bg-white hover:bg-gray-50 text-gray-700 hover:text-gray-900 border border-gray-200 hover:border-gray-300 shadow-sm hover:shadow-md'
+              }
+              backdrop-blur-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2
+            `}
+          >
+            Back to Home
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Join form
+  if (showJoinForm && !currentPlayer) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-neutral-100 p-4">
+        {/* Theme Toggle Button - positioned in top right */}
+        <div className="absolute top-4 right-4">
+          <ThemeToggleButton />
+        </div>
+        
+        <div className="card max-w-md w-full">
+                          <h2 className="text-2xl font-bold mb-4 font-display tracking-tight">Join Game</h2>
+          <p className="mb-4">
+            You've been invited to play a game of Go. Enter your name to join this game.
+          </p>
+          <form onSubmit={handleJoinGame}>
+            <div className="mb-4">
+              <label htmlFor="username" className="block text-sm font-medium text-neutral-700 mb-1">
+                Your Name
+              </label>
+              <input
+                type="text"
+                id="username"
+                value={username}
+                onChange={(e) => handleUsernameChange(e.target.value)}
+                className={`form-input ${usernameError ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}`}
+                placeholder="Enter your name (4-32 characters)"
+                maxLength={32}
+                required
+                autoFocus
+              />
+              {usernameError && (
+                <p className="mt-2 text-sm text-red-600">{usernameError}</p>
+              )}
+              <p className="mt-1 text-xs text-neutral-500">
+                Name must be 4-32 characters. Only letters, numbers, spaces, underscores, and hyphens allowed.
+              </p>
+            </div>
+            
+            {/* Spectator Mode Option */}
+            <div className="mb-4">
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={joinAsSpectator}
+                  onChange={(e) => setJoinAsSpectator(e.target.checked)}
+                  className="form-checkbox h-4 w-4 text-primary-600 rounded border-neutral-300 focus:ring-primary-500 focus:ring-offset-0"
+                />
+                <span className="text-sm font-medium text-neutral-700">
+                  Join as spectator (watch only)
+                </span>
+              </label>
+              <p className="mt-1 text-xs text-neutral-500">
+                As a spectator, you can watch the game but cannot play moves.
+              </p>
+            </div>
+            
+            <div className="flex gap-2">
+              <button
+                type="submit"
+                className="flex-1 btn btn-primary"
+              >
+                {joinAsSpectator ? 'Watch Game' : 'Join Game'}
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate('/')}
+                className="flex-1 btn bg-neutral-200 text-neutral-800 hover:bg-neutral-300 focus:ring-neutral-400"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // No game state at all - should redirect to home
+  if (!gameState) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-neutral-100 p-4">
+        {/* Theme Toggle Button - positioned in top right */}
+        <div className="absolute top-4 right-4">
+          <ThemeToggleButton />
+        </div>
+        
+        <div className="card max-w-md w-full text-center">
+          <h2 className="text-2xl font-bold mb-4">Game Not Found</h2>
+          <p className="mb-4">We couldn't find the requested game.</p>
+          <button
+            onClick={() => navigate('/')}
+            className={`
+              w-full px-4 py-2.5 rounded-lg font-medium transition-all duration-200 
+              ${isDarkMode 
+                ? 'bg-slate-700/50 hover:bg-slate-600/60 text-slate-200 hover:text-white border border-slate-600/50 hover:border-slate-500' 
+                : 'bg-white hover:bg-gray-50 text-gray-700 hover:text-gray-900 border border-gray-200 hover:border-gray-300 shadow-sm hover:shadow-md'
+              }
+              backdrop-blur-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2
+            `}
+          >
+            Back to Home
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Game board and UI
+  const isSpectator = currentPlayer && currentPlayer.isSpectator === true;
+  return (
+    <>
+      <div className="min-h-screen bg-neutral-100 relative">
+
+        
+        <div className="max-w-7xl mx-auto p-2 sm:p-4 md:p-6">
+          <div className="flex justify-between items-center mb-4 sm:mb-6 gap-2 sm:gap-4">
+            {/* Left spacer on mobile for centering logo */}
+            <div className="w-12 sm:hidden"></div>
+            
+            {/* Logo and title - centered on mobile, left-aligned on larger screens */}
+            <div className="flex items-center gap-3 flex-1 sm:flex-none justify-center sm:justify-start">
+              <GoseiLogo size={40} />
+                              <h1 className="text-2xl sm:text-3xl font-bold text-primary-700 font-display tracking-tight">Gosei Play</h1>
+            </div>
+            
+            {/* Theme Toggle Button - always on the right */}
+            <div className="flex items-center justify-end">
+              <ThemeToggleButton />
+            </div>
+          </div>
+          
+          {/* Add a small indicator when dev tools are enabled */}
+          {showDevTools && (
+            <div className="text-xs text-neutral-500 text-center mb-2">
+              Developer Tools Enabled (Ctrl+Shift+D to toggle)
+            </div>
+          )}
+          
+          {/* Mobile Player Panel - Show at top on mobile/tablet */}
+          <MobilePlayerPanel
+            gameState={gameState}
+            currentPlayer={currentPlayer || undefined}
+          />
+          
+          {/* Mobile-first responsive grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6">
+            {/* Go Board - adjust to be full width on mobile and take 3/4 on larger screens */}
+            <div className="lg:col-span-3 flex flex-col items-center">
+              
+              {/* Game Status Indicators - positioned outside the board */}
+              <div className="w-full max-w-full mb-4 flex flex-col sm:flex-row justify-between items-center gap-2">
+                {/* Review Mode Indicator */}
+                {(reviewBoardState?.isReviewing || (isSpectator && spectatorIsReviewing)) && (
+                  <div className="game-status-panel review-mode-panel">
+                    <div className="flex items-center gap-2">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.293l-3-3a1 1 0 00-1.414-1.414L9 5.586 7.707 4.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4a1 1 0 00-1.414-1.414L10 4.586z" clipRule="evenodd" />
+                      </svg>
+                      <span>Review Mode: Use controls below to navigate</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Territory Legend */}
+                {(gameState.status === 'finished' || gameState.status === 'scoring') && !(reviewBoardState?.isReviewing || (isSpectator && spectatorIsReviewing)) && (
+                  <div className="game-status-panel territory-legend-panel">
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2">
+                        <div className="territory-indicator black"></div>
+                        <span>Black Territory</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="territory-indicator white"></div>
+                        <span>White Territory</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div 
+                className={`w-full max-w-full ${
+                  gameState.status === 'finished' 
+                    ? 'game-finished-container' 
+                    : 'overflow-auto'
+                }`}
+              >
+                <GoBoard
+                  board={{
+                    ...gameState.board,
+                    stones: (isSpectator && spectatorIsReviewing) 
+                      ? (spectatorReviewStones || [])
+                      : reviewBoardState?.isReviewing 
+                        ? (reviewBoardState.stones || [])
+                        : gameState.board.stones
+                  }}
+                  currentTurn={gameState.currentTurn}
+                  onPlaceStone={(position) => {
+                    // Add debug for handicap games
+                    if (gameState.gameType === 'handicap') {
+                      console.log('Handicap game detected');
+                      console.log(`Current turn: ${gameState.currentTurn}, Player color: ${currentPlayer?.color}`);
+                    }
+                    handleStonePlace(position);
+                  }}
+                  isPlayerTurn={gameState.status === 'playing' && currentPlayer?.color === gameState.currentTurn}
+                  lastMove={gameState.lastMove}
+                  isScoring={gameState.status === 'scoring'}
+                  deadStones={gameState.deadStones}
+                  onToggleDeadStone={handleToggleDeadStone}
+                  territory={gameState.territory}
+                  showTerritory={(gameState.status === 'finished' || gameState.status === 'scoring') && !(reviewBoardState?.isReviewing || (isSpectator && spectatorIsReviewing && gameState.status !== 'finished'))}
+                  isReviewing={reviewBoardState?.isReviewing || (isSpectator && spectatorIsReviewing && gameState.status !== 'finished') || false}
+                  reviewStones={reviewBoardState?.stones || (isSpectator && spectatorIsReviewing ? (spectatorReviewStones || []) : [])}
+                  onPreviewPositionChange={(pos) => setPreviewPosition(pos)}
+                  previewPosition={previewPosition}
+                  showCoordinates={showCoordinates}
+                  isHandicapPlacement={gameState.gameType === 'handicap'}
+                />
+                
+                {/* Game Review Controls - Only shown when game is finished */}
+                {gameState.status === 'finished' && (
+                  <GameReview
+                    gameState={gameState}
+                    onBoardStateChange={setReviewBoardState}
+                  />
+                )}
+            </div>
+
+              {/* Mobile Stone Controls - Show on mobile/tablet only, positioned after the board */}
+              <div className="w-full flex justify-center mt-4">
+                <MobileStoneControls
+                  currentTurn={gameState.currentTurn}
+                  isPlayerTurn={gameState.status === 'playing' && currentPlayer?.color === gameState.currentTurn}
+                  isScoring={gameState.status === 'scoring'}
+                  isReviewing={reviewBoardState?.isReviewing || false}
+                  isThinking={isThinking}
+                  isFinished={gameState.status === 'finished'}
+                  previewPosition={previewPosition}
+                  onPlaceStone={handleMobilePlaceStone}
+                  boardSize={gameState.board.size}
+                />
+              </div>
+              </div>
+
+            {/* Game Info Panel - Hide on mobile/tablet, show on desktop */}
+            {!(isMobile || isTablet) && (
+              <div className="lg:col-span-1 w-full">
+              
+              <GameInfo
+                gameState={gameState}
+                currentPlayer={currentPlayer || undefined}
+                onResign={handleResignGame}
+                onRequestUndo={handleRequestUndo}
+                onAcceptUndo={handleAcceptUndo}
+                onRejectUndo={handleRejectUndo}
+                onPassTurn={handlePassTurn}
+                onLeaveGame={handleLeaveGame}
+                onCopyGameLink={handleShareGame}
+                autoSaveEnabled={autoSaveEnabled}
+                onToggleAutoSave={toggleAutoSave}
+                onSaveNow={saveGameNow}
+                onConfirmScore={handleConfirmScore}
+                onCancelScoring={handleCancelScoring}
+                onForceScoring={handleForceScoring}
+                showCoordinates={showCoordinates}
+                onToggleCoordinates={handleToggleCoordinates}
+                onReviewBoardChange={(stones: Stone[], moveIndex: number, isReviewing: boolean) => {
+                  setSpectatorReviewStones(stones);
+          
+                  setSpectatorIsReviewing(isReviewing);
+                }}
+              />
+              
+              {/* Debug Controls - Only shown when dev tools are enabled */}
+              {showDevTools && (
+                <div className="mt-4 sm:mt-6">
+                  <button
+                    onClick={handleSyncGame}
+                    className="btn bg-neutral-200 text-neutral-800 hover:bg-neutral-300 focus:ring-neutral-400 w-full"
+                    disabled={syncing}
+                  >
+                    {syncing ? 'Syncing...' : 'Sync Game'}
+                  </button>
+                </div>
+              )}
+            </div>
+            )}
+          </div>
+          
+          {/* Mobile Game Tools - Show at bottom on mobile/tablet */}
+          <MobileGameTools
+            gameState={gameState}
+            currentPlayer={currentPlayer || undefined}
+            onPassTurn={handlePassTurn}
+            onRequestUndo={handleRequestUndo}
+            onResign={handleResignGame}
+            onLeaveGame={handleLeaveGame}
+            onCopyGameLink={handleShareGame}
+            onConfirmScore={handleConfirmScore}
+            onCancelScoring={handleCancelScoring}
+            onForceScoring={handleForceScoring}
+            autoSaveEnabled={autoSaveEnabled}
+            onToggleAutoSave={toggleAutoSave}
+            onSaveNow={saveGameNow}
+            showCoordinates={showCoordinates}
+            onToggleCoordinates={handleToggleCoordinates}
+          />
+        </div>
+        
+        {/* Game error messages */}
+        <GameError />
+
+        {gameState.status === 'finished' && showGameCompleteModal && (
+          <GameCompleteModal 
+            onClose={() => {
+              // Allow users to close the modal and interact with underlying UI
+              setShowGameCompleteModal(false);
+            }}
+            onPlayAgain={() => {
+              resetGame();
+              navigate('/');
+            }}
+          />
+        )}
+
+        {/* Share Modal */}
+        <ShareModal 
+          isOpen={showShareModal}
+          onClose={() => setShowShareModal(false)}
+          gameCode={gameState.code}
+        />
+        
+        {/* Add connection status component - HIDDEN */}
+        {/* <ConnectionStatus /> */}
+
+        {/* Game Notifications */}
+        <GameNotification
+          key={notification.id || 'default'}
+          isVisible={notification.visible}
+          message={notification.message}
+          type={notification.type}
+          result={notification.result}
+          duration={2000}
+          onClose={handleNotificationClose}
+        />
+
+        {/* Undo Request Notification - Only show for human vs human games */}
+        {gameState.undoRequest && currentPlayer && gameState.undoRequest.requestedBy !== currentPlayer.id && !gameState.players.some(player => player.isAI) && (
+          <UndoNotification
+            onAccept={handleAcceptUndo}
+            onReject={handleRejectUndo}
+            moveIndex={gameState.undoRequest.moveIndex}
+          />
+        )}
+
+        {/* AI Undo Confirmation Modal */}
+        <AIUndoConfirmModal
+          isOpen={showAIUndoConfirm}
+          onConfirm={handleConfirmAIUndo}
+          onCancel={handleCancelAIUndo}
+        />
+      </div>
+      
+      {/* Floating Chat Bubble - moved outside the positioned container to fix positioning */}
+      {currentPlayer && (
+        <FloatingChatBubble
+          gameId={gameState.id}
+          currentPlayerId={currentPlayer.id}
+          currentPlayerUsername={currentPlayer.username}
+          socket={gameState.socket}
+          messages={chatMessages}
+        />
+      )}
+
+
+    </>
+  );
+};
+
+export default GamePage; 

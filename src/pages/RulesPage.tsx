@@ -1,0 +1,389 @@
+import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
+import GoseiLogo from '../components/GoseiLogo';
+import ThemeToggleButton from '../components/ThemeToggleButton';
+import { useAppTheme } from '../context/AppThemeContext';
+
+interface RulesSectionProps {
+  title: string;
+  children: React.ReactNode;
+  isOpen: boolean;
+  onToggle: () => void;
+}
+
+const RulesSection: React.FC<RulesSectionProps> = ({ title, children, isOpen, onToggle }) => (
+  <div className="border border-neutral-200 rounded-lg overflow-hidden">
+    <button
+      onClick={onToggle}
+      className="w-full px-6 py-4 bg-neutral-50 hover:bg-neutral-100 text-left flex items-center justify-between transition-colors"
+    >
+      <h3 className="text-lg font-semibold text-neutral-800">{title}</h3>
+      <svg
+        className={`w-5 h-5 transform transition-transform ${isOpen ? 'rotate-180' : ''}`}
+        fill="currentColor"
+        viewBox="0 0 20 20"
+      >
+        <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+      </svg>
+    </button>
+    {isOpen && (
+      <div className="px-6 py-4 bg-white">
+        {children}
+      </div>
+    )}
+  </div>
+);
+
+const RulesPage: React.FC = () => {
+  const { isDarkMode } = useAppTheme();
+  const [openSections, setOpenSections] = useState<Set<string>>(new Set(['basic-rules']));
+
+  const toggleSection = (sectionId: string) => {
+    setOpenSections(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(sectionId)) {
+        newSet.delete(sectionId);
+      } else {
+        newSet.add(sectionId);
+      }
+      return newSet;
+    });
+  };
+
+  return (
+    <div className="min-h-screen bg-neutral-100">
+      <div className="container mx-auto px-4 py-8">
+        {/* Header */}
+        <header className="text-center mb-8">
+          <div className="flex items-center justify-center gap-3 mb-2">
+            <GoseiLogo size={48} />
+            <h1 className="text-4xl font-bold text-primary-700 font-display tracking-tight">Go Rules & Guide</h1>
+          </div>
+          <p className="text-xl text-neutral-600">
+            Learn the ancient game of Go (Weiqi/Baduk)
+          </p>
+        </header>
+
+        {/* Navigation */}
+        <div className="max-w-4xl mx-auto mb-6">
+          <div className="flex items-center justify-between">
+            <Link
+              to="/board-demo"
+              className={`
+                inline-flex items-center px-4 py-2.5 rounded-lg font-medium transition-all duration-200 
+                ${isDarkMode
+                  ? 'bg-slate-700/50 hover:bg-slate-600/60 text-slate-200 hover:text-white border border-slate-600/50 hover:border-slate-500'
+                  : 'bg-white hover:bg-gray-50 text-gray-700 hover:text-gray-900 border border-gray-200 hover:border-gray-300 shadow-sm hover:shadow-md'
+                }
+                backdrop-blur-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2
+              `}
+            >
+              <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
+              </svg>
+              Back to Board Demo
+            </Link>
+
+            {/* Theme Toggle Button - positioned on the same row as navigation */}
+            <div className="flex-shrink-0">
+              <ThemeToggleButton />
+            </div>
+          </div>
+        </div>
+
+        {/* Rules Content */}
+        <div className="max-w-4xl mx-auto space-y-4">
+          {/* Game Overview */}
+          <RulesSection
+            title="🎯 Game Overview"
+            isOpen={openSections.has('overview')}
+            onToggle={() => toggleSection('overview')}
+          >
+            <div className="space-y-4">
+              <p className="text-neutral-700">
+                Go is an ancient board game for two players that originated in China over 4,000 years ago.
+                It's known as <strong>Weiqi</strong> in Chinese, <strong>Baduk</strong> in Korean, and <strong>Go</strong> in Japanese.
+              </p>
+              <div className={`p-4 rounded-lg transition-colors duration-200 ${isDarkMode ? 'bg-blue-900/20' : 'bg-blue-50'}`}>
+                <h4 className={`font-semibold mb-2 ${isDarkMode ? 'text-blue-300' : 'text-blue-800'}`}>Objective</h4>
+                <p className={isDarkMode ? 'text-blue-100/90' : 'text-blue-700'}>
+                  Control more territory than your opponent by placing stones and capturing enemy groups.
+                </p>
+              </div>
+            </div>
+          </RulesSection>
+
+          {/* Basic Rules */}
+          <RulesSection
+            title="📋 Basic Rules"
+            isOpen={openSections.has('basic-rules')}
+            onToggle={() => toggleSection('basic-rules')}
+          >
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className={`p-4 rounded-lg transition-colors duration-200 ${isDarkMode ? 'bg-green-900/20' : 'bg-green-50'}`}>
+                  <h4 className={`font-semibold mb-2 ${isDarkMode ? 'text-green-300' : 'text-green-800'}`}>1. Placing Stones</h4>
+                  <p className={isDarkMode ? 'text-green-100/90' : 'text-green-700'}>
+                    Players alternate placing black and white stones on line intersections.
+                    Black always plays first.
+                  </p>
+                </div>
+                <div className={`p-4 rounded-lg transition-colors duration-200 ${isDarkMode ? 'bg-purple-900/20' : 'bg-purple-50'}`}>
+                  <h4 className={`font-semibold mb-2 ${isDarkMode ? 'text-purple-300' : 'text-purple-800'}`}>2. No Moving</h4>
+                  <p className={isDarkMode ? 'text-purple-100/90' : 'text-purple-700'}>
+                    Once placed, stones cannot be moved. They can only be captured and removed.
+                  </p>
+                </div>
+                <div className={`p-4 rounded-lg transition-colors duration-200 ${isDarkMode ? 'bg-orange-900/20' : 'bg-orange-50'}`}>
+                  <h4 className={`font-semibold mb-2 ${isDarkMode ? 'text-orange-300' : 'text-orange-800'}`}>3. Passing</h4>
+                  <p className={isDarkMode ? 'text-orange-100/90' : 'text-orange-700'}>
+                    Players can pass their turn. When both players pass consecutively, the game ends.
+                  </p>
+                </div>
+                <div className={`p-4 rounded-lg transition-colors duration-200 ${isDarkMode ? 'bg-red-900/20' : 'bg-red-50'}`}>
+                  <h4 className={`font-semibold mb-2 ${isDarkMode ? 'text-red-300' : 'text-red-800'}`}>4. No Suicide</h4>
+                  <p className={isDarkMode ? 'text-red-100/90' : 'text-red-700'}>
+                    You cannot place a stone that would have no liberties unless it captures enemy stones.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </RulesSection>
+
+          {/* Capturing */}
+          <RulesSection
+            title="⚔️ Capturing Stones"
+            isOpen={openSections.has('capturing')}
+            onToggle={() => toggleSection('capturing')}
+          >
+            <div className="space-y-4">
+              <p className="text-neutral-700">
+                Stones are captured when they have no empty adjacent intersections (liberties).
+              </p>
+              <div className={`p-4 rounded-lg transition-colors duration-200 ${isDarkMode ? 'bg-yellow-900/20' : 'bg-yellow-50'}`}>
+                <h4 className={`font-semibold mb-2 ${isDarkMode ? 'text-yellow-300' : 'text-yellow-800'}`}>Liberties</h4>
+                <ul className={`list-disc pl-5 space-y-1 ${isDarkMode ? 'text-yellow-100/90' : 'text-yellow-700'}`}>
+                  <li>Each empty intersection adjacent to a stone is a <strong>liberty</strong></li>
+                  <li>Connected stones of the same color share liberties</li>
+                  <li>Groups with zero liberties are captured and removed</li>
+                  <li>Diagonally adjacent stones are not connected</li>
+                </ul>
+              </div>
+              <div className={`p-4 rounded-lg transition-colors duration-200 ${isDarkMode ? 'bg-red-900/20' : 'bg-red-50'}`}>
+                <h4 className={`font-semibold mb-2 ${isDarkMode ? 'text-red-300' : 'text-red-800'}`}>Capture Process</h4>
+                <ol className={`list-decimal pl-5 space-y-1 ${isDarkMode ? 'text-red-100/90' : 'text-red-700'}`}>
+                  <li>Place a stone that removes the last liberty of an enemy group</li>
+                  <li>All stones in that group are immediately captured</li>
+                  <li>Captured stones are removed from the board</li>
+                  <li>Captured stones count as points for the capturing player</li>
+                </ol>
+              </div>
+            </div>
+          </RulesSection>
+
+          {/* Ko Rule */}
+          <RulesSection
+            title="🔄 Ko Rule"
+            isOpen={openSections.has('ko-rule')}
+            onToggle={() => toggleSection('ko-rule')}
+          >
+            <div className="space-y-4">
+              <p className="text-neutral-700">
+                The Ko rule prevents infinite loops of capture and recapture.
+              </p>
+              <div className={`p-4 rounded-lg transition-colors duration-200 ${isDarkMode ? 'bg-indigo-900/20' : 'bg-indigo-50'}`}>
+                <h4 className={`font-semibold mb-2 ${isDarkMode ? 'text-indigo-300' : 'text-indigo-800'}`}>Ko Situation</h4>
+                <ul className={`list-disc pl-5 space-y-1 ${isDarkMode ? 'text-indigo-100/90' : 'text-indigo-700'}`}>
+                  <li>When a single stone captures a single stone</li>
+                  <li>The captured position creates an immediate recapture opportunity</li>
+                  <li>The player cannot immediately recapture</li>
+                  <li>They must play elsewhere first, then can recapture if the position is still available</li>
+                </ul>
+              </div>
+              <div className={`p-4 rounded-lg transition-colors duration-200 ${isDarkMode ? 'bg-blue-900/20' : 'bg-blue-50'}`}>
+                <h4 className={`font-semibold mb-2 ${isDarkMode ? 'text-blue-300' : 'text-blue-800'}`}>Purpose</h4>
+                <p className={isDarkMode ? 'text-blue-100/90' : 'text-blue-700'}>
+                  This rule prevents games from continuing indefinitely and adds strategic depth to corner and edge fights.
+                </p>
+              </div>
+            </div>
+          </RulesSection>
+
+          {/* Territory and Scoring */}
+          <RulesSection
+            title="🏆 Territory & Scoring"
+            isOpen={openSections.has('scoring')}
+            onToggle={() => toggleSection('scoring')}
+          >
+            <div className="space-y-4">
+              <div className={`p-4 rounded-lg transition-colors duration-200 ${isDarkMode ? 'bg-green-900/20' : 'bg-green-50'}`}>
+                <h4 className={`font-semibold mb-2 ${isDarkMode ? 'text-green-300' : 'text-green-800'}`}>Territory</h4>
+                <ul className={`list-disc pl-5 space-y-1 ${isDarkMode ? 'text-green-100/90' : 'text-green-700'}`}>
+                  <li>Empty intersections completely surrounded by one color</li>
+                  <li>Must be completely enclosed with no escape routes</li>
+                  <li>Each empty intersection in your territory = 1 point</li>
+                </ul>
+              </div>
+              <div className={`p-4 rounded-lg transition-colors duration-200 ${isDarkMode ? 'bg-purple-900/20' : 'bg-purple-50'}`}>
+                <h4 className={`font-semibold mb-2 ${isDarkMode ? 'text-purple-300' : 'text-purple-800'}`}>Final Score</h4>
+                <ul className={`list-disc pl-5 space-y-1 ${isDarkMode ? 'text-purple-100/90' : 'text-purple-700'}`}>
+                  <li><strong>Territory points:</strong> Empty intersections you control</li>
+                  <li><strong>Capture points:</strong> Enemy stones you captured</li>
+                  <li><strong>Komi:</strong> Compensation points for White (usually 6.5)</li>
+                  <li><strong>Winner:</strong> Player with the highest total score</li>
+                </ul>
+              </div>
+            </div>
+          </RulesSection>
+
+          {/* Board Sizes */}
+          <RulesSection
+            title="📐 Board Sizes"
+            isOpen={openSections.has('board-sizes')}
+            onToggle={() => toggleSection('board-sizes')}
+          >
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className={`p-4 rounded-lg transition-colors duration-200 ${isDarkMode ? 'bg-emerald-900/20' : 'bg-emerald-50'}`}>
+                  <h4 className={`font-semibold ${isDarkMode ? 'text-emerald-300' : 'text-emerald-800'}`}>9×9 Board</h4>
+                  <p className={`text-sm mt-1 ${isDarkMode ? 'text-emerald-100/90' : 'text-emerald-700'}`}>Quick games (20-30 min)</p>
+                  <p className={`text-xs mt-2 ${isDarkMode ? 'text-emerald-200' : 'text-emerald-600'}`}>Perfect for beginners</p>
+                </div>
+                <div className={`p-4 rounded-lg transition-colors duration-200 ${isDarkMode ? 'bg-blue-900/20' : 'bg-blue-50'}`}>
+                  <h4 className={`font-semibold ${isDarkMode ? 'text-blue-300' : 'text-blue-800'}`}>13×13 Board</h4>
+                  <p className={`text-sm mt-1 ${isDarkMode ? 'text-blue-100/90' : 'text-blue-700'}`}>Medium games (45-60 min)</p>
+                  <p className={`text-xs mt-2 ${isDarkMode ? 'text-blue-200' : 'text-blue-600'}`}>Good for intermediate players</p>
+                </div>
+                <div className={`p-4 rounded-lg transition-colors duration-200 ${isDarkMode ? 'bg-purple-900/20' : 'bg-purple-50'}`}>
+                  <h4 className={`font-semibold ${isDarkMode ? 'text-purple-300' : 'text-purple-800'}`}>19×19 Board</h4>
+                  <p className={`text-sm mt-1 ${isDarkMode ? 'text-purple-100/90' : 'text-purple-700'}`}>Full games (90-120 min)</p>
+                  <p className={`text-xs mt-2 ${isDarkMode ? 'text-purple-200' : 'text-purple-600'}`}>Tournament standard</p>
+                </div>
+              </div>
+              <div className="text-center">
+                <Link
+                  to="/board-demo"
+                  className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+                >
+                  Try Different Board Sizes
+                  <svg className="w-4 h-4 ml-2" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                </Link>
+              </div>
+            </div>
+          </RulesSection>
+
+          {/* Strategy Tips */}
+          <RulesSection
+            title="💡 Strategy Tips"
+            isOpen={openSections.has('strategy')}
+            onToggle={() => toggleSection('strategy')}
+          >
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className={`p-4 rounded-lg transition-colors duration-200 ${isDarkMode ? 'bg-amber-900/20' : 'bg-amber-50'}`}>
+                  <h4 className={`font-semibold mb-2 ${isDarkMode ? 'text-amber-300' : 'text-amber-800'}`}>Opening (Fuseki)</h4>
+                  <ul className={`list-disc pl-5 space-y-1 text-sm ${isDarkMode ? 'text-amber-100/90' : 'text-amber-700'}`}>
+                    <li>Play in corners first - they're easier to secure</li>
+                    <li>Avoid the edges and center early</li>
+                    <li>Look for star points (marked intersections)</li>
+                  </ul>
+                </div>
+                <div className={`p-4 rounded-lg transition-colors duration-200 ${isDarkMode ? 'bg-teal-900/20' : 'bg-teal-50'}`}>
+                  <h4 className={`font-semibold mb-2 ${isDarkMode ? 'text-teal-300' : 'text-teal-800'}`}>Middle Game</h4>
+                  <ul className={`list-disc pl-5 space-y-1 text-sm ${isDarkMode ? 'text-teal-100/90' : 'text-teal-700'}`}>
+                    <li>Connect your stones to form strong groups</li>
+                    <li>Attack weak enemy groups</li>
+                    <li>Build territory while maintaining balance</li>
+                  </ul>
+                </div>
+                <div className={`p-4 rounded-lg transition-colors duration-200 ${isDarkMode ? 'bg-rose-900/20' : 'bg-rose-50'}`}>
+                  <h4 className={`font-semibold mb-2 ${isDarkMode ? 'text-rose-300' : 'text-rose-800'}`}>Endgame (Yose)</h4>
+                  <ul className={`list-disc pl-5 space-y-1 text-sm ${isDarkMode ? 'text-rose-100/90' : 'text-rose-700'}`}>
+                    <li>Secure your territory boundaries</li>
+                    <li>Play the largest moves first</li>
+                    <li>Count territory to assess the position</li>
+                  </ul>
+                </div>
+                <div className={`p-4 rounded-lg transition-colors duration-200 ${isDarkMode ? 'bg-cyan-900/20' : 'bg-cyan-50'}`}>
+                  <h4 className={`font-semibold mb-2 ${isDarkMode ? 'text-cyan-300' : 'text-cyan-800'}`}>General Advice</h4>
+                  <ul className={`list-disc pl-5 space-y-1 text-sm ${isDarkMode ? 'text-cyan-100/90' : 'text-cyan-700'}`}>
+                    <li>Think before you play - stones can't be moved</li>
+                    <li>Learn basic patterns and shapes</li>
+                    <li>Practice life and death problems</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </RulesSection>
+
+          {/* Quick Reference */}
+          <div className={`p-6 rounded-xl shadow-lg transition-colors duration-200 ${isDarkMode ? 'bg-slate-800' : 'bg-white'}`}>
+            <h3 className={`text-xl font-semibold mb-4 text-center font-display tracking-tight ${isDarkMode ? 'text-white' : ''}`}>Quick Reference</h3>
+            <div className={`grid grid-cols-1 md:grid-cols-3 gap-4 text-sm ${isDarkMode ? 'text-slate-300' : ''}`}>
+              <div>
+                <h4 className={`font-semibold mb-2 ${isDarkMode ? 'text-slate-200' : 'text-neutral-800'}`}>✅ You Can:</h4>
+                <ul className={`list-disc pl-5 space-y-1 ${isDarkMode ? 'text-slate-400' : 'text-neutral-600'}`}>
+                  <li>Place stones on intersections</li>
+                  <li>Capture enemy groups with no liberties</li>
+                  <li>Pass your turn</li>
+                  <li>Resign if the position is hopeless</li>
+                </ul>
+              </div>
+              <div>
+                <h4 className={`font-semibold mb-2 ${isDarkMode ? 'text-slate-200' : 'text-neutral-800'}`}>❌ You Cannot:</h4>
+                <ul className={`list-disc pl-5 space-y-1 ${isDarkMode ? 'text-slate-400' : 'text-neutral-600'}`}>
+                  <li>Move stones once placed</li>
+                  <li>Place stones on occupied intersections</li>
+                  <li>Make suicide moves (usually)</li>
+                  <li>Immediately recapture in Ko</li>
+                </ul>
+              </div>
+              <div>
+                <h4 className={`font-semibold mb-2 ${isDarkMode ? 'text-slate-200' : 'text-neutral-800'}`}>🎯 Remember:</h4>
+                <ul className={`list-disc pl-5 space-y-1 ${isDarkMode ? 'text-slate-400' : 'text-neutral-600'}`}>
+                  <li>Territory + Captures = Score</li>
+                  <li>Connected stones share liberties</li>
+                  <li>White gets komi (compensation)</li>
+                  <li>Practice makes perfect!</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          {/* Call to Action */}
+          <div className="text-center py-8">
+            <h3 className="text-2xl font-semibold mb-4 text-neutral-800 font-display tracking-tight">Ready to Play?</h3>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Link
+                to="/board-demo"
+                className="group px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 focus:from-indigo-600 focus:to-purple-600 transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-105 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2 rounded-lg"
+              >
+                <span className="flex items-center justify-center gap-2 text-white font-semibold">
+                  <svg className="w-5 h-5 group-hover:rotate-12 transition-transform duration-200 text-white" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zm0 4a1 1 0 011-1h12a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1V8zm6 2a1 1 0 11-2 0 1 1 0 012 0z" clipRule="evenodd" />
+                  </svg>
+                  <span className="text-white">Practice on Demo Board</span>
+                </span>
+              </Link>
+              <Link
+                to="/"
+                className="group px-6 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 focus:from-emerald-600 focus:to-teal-600 transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-105 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 rounded-lg"
+              >
+                <span className="flex items-center justify-center gap-2 text-white font-semibold">
+                  <svg className="w-5 h-5 group-hover:rotate-12 transition-transform duration-200 text-white" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+                  </svg>
+                  <span className="text-white">Start a Real Game</span>
+                </span>
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default RulesPage; 
