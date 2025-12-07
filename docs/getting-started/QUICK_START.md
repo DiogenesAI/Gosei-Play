@@ -122,4 +122,4 @@ Experience professional-grade Go gaming with friends around the world!
 
 ---
 
-*Powered by [Beaver Foundation](https://beaver.foundation) - [ShioDev](https://hello.shiodev.com)* 
+*Powered by [Diogenes Foundation](https://diogenes.foundation) - [ShioDev](https://hello.shiodev.com)* 

@@ -403,4 +403,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Built with modern web technologies for optimal performance
 - Implements authentic Go rules and time controls
 - Designed for competitive and casual play
-- Powered by [Beaver Foundation](https://beaver.foundation) - [ShioDev](https://hello.shiodev.com) 
+- Powered by [Diogenes Foundation](https://diogenes.foundation) - [ShioDev](https://hello.shiodev.com) 

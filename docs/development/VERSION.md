@@ -538,7 +538,7 @@ if (periodExpired && periodsRemaining > 0) {
 
 ## Credits
 
-**Development Team**: Powered by [Beaver Foundation](https://beaver.foundation) - [ShioDev](https://hello.shiodev.com)
+**Development Team**: Powered by [Diogenens Foundation](https://d.foundation) - [ShioDev](https://hello.shiodev.com)
 
 **Special Thanks**: 
 - Go community for rules and traditions
