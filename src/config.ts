@@ -23,12 +23,12 @@ const getServerHost = () => {
 // Socket server URL
 export const SOCKET_URL = isDev
   ? `http://${getServerHost()}:3001`
-  : process.env.REACT_APP_SOCKET_URL || 'https://gosei-svr01.ecreative.asia';
+  : process.env.REACT_APP_SOCKET_URL || '';
 
 // API base URL
 export const API_BASE_URL = isDev
   ? `http://${getServerHost()}:3001/api`
-  : process.env.REACT_APP_API_URL || 'https://gosei-svr01.ecreative.asia/api';
+  : process.env.REACT_APP_API_URL || '';
 
 // Game configuration
 export const DEFAULT_BOARD_SIZE = 19;
